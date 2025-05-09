@@ -1,0 +1,4 @@
+1. logged out in between because of expired session in deribit api while developing application.
+2. doesn't know the state connection i was on and ran into many state handling problems.
+3. error handling of the json response sent and received from deribit api, sometimes parsing is not correct and
+sometimes params are not passed correctly.
