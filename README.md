@@ -101,105 +101,27 @@ DeribitTrader employs a modular C++ architecture:
 
 Currently, the application does not use a dedicated configuration file. API credentials (`client_id`, `client_secret`) must be provided interactively via the `deribit authorize` command after establishing a connection. The Deribit API endpoint (Testnet vs Mainnet) is selected via the `connect` command (`deribit connect` defaults to Testnet).
 
-## 5. System Components (Implementation Details)
+## 5. Security Measures
 
-### 5.1 API Communication Layer (`network/socket_client.cpp`)
-
-- Wraps `ix::WebSocket` to manage the connection state (`ConnectionDetails`).
-- Handles incoming messages via callbacks (`onMessageCallback`).
-- Provides methods like `connect`, `close`, `send`.
-- Uses `std::mutex` and `std::condition_variable` (`connection_mutex`, `connection_cv`) likely for synchronizing send/receive operations or waiting for responses in the main thread.
-
-```cpp
-// Conceptual structure based on socket_client.h/cpp
-class SocketEndpoint {
-private:
-    std::map<int, ConnectionDetails::ptr> connection_metadata;
-    std::map<int, std::shared_ptr<ix::WebSocket>> ws_clients;
-    // ... mutexes, counters ...
-
-    void onMessageCallback(const ix::WebSocketMessagePtr& msg, int connection_id);
-
-public:
-    int connect(const std::string& uri);
-    void close(int id, int code, const std::string& reason);
-    int send(int id, const std::string& message); // Sends JSON string
-    ConnectionDetails::ptr get_metadata(int id);
-    void streamSubscriptions(const std::vector<std::string>& connections); // Toggles streaming output
-};
-```
-
-### 5.2 Exchange Interface (`api/api.cpp`, `exchange_interface/market_api.cpp`)
-
-- `api::processRequest` acts as a dispatcher, parsing the user's command string.
-- Based on the command (e.g., `buy`, `sell`, `subscribe`, `get_positions`), it constructs a `nlohmann::json` object representing the JSON-RPC request.
-- Includes parameters like `instrument_name`, `amount`, `price`, `channels`, etc., as required by the specific Deribit API method.
-- Returns the JSON request as a string, ready to be sent via `SocketEndpoint::send`.
-- Manages a list of active subscription channel names.
-
-```cpp
-// Conceptual structure based on api.cpp
-namespace api {
-    nlohmann::json createBaseRequest(const std::string& method);
-    std::string processRequest(const std::string& command) {
-        // 1. Parse command string (e.g., using stringstream)
-        // 2. Identify target API method (e.g., "private/buy", "public/subscribe")
-        // 3. Create base JSON request object
-        // 4. Add specific parameters based on command arguments
-        // 5. Return json_request.dump();
-    }
-    void addSubscription(const std::string& channel);
-    void removeSubscription(const std::string& channel);
-    std::vector<std::string> getActiveSubscription();
-}
-```
-
-### 5.3 Performance Monitoring (`performance/monitor.cpp`)
-
-- Implemented as a singleton (`getPerformanceMonitor`).
-- Uses a `std::map` to store start times (`std::chrono::high_resolution_clock::time_point`) keyed by operation type.
-- `end_measurement` calculates the duration and accumulates statistics (total time, count).
-- `generate_report` formats the collected statistics into a human-readable string.
-
-```cpp
-// Conceptual structure based on performance/monitor.h
-enum class OperationType { /* e.g., API_CALL, JSON_PARSE, ... */ };
-
-class PerformanceMonitor {
-private:
-    struct Stats { /* total_duration, count */ };
-    std::map<OperationType, Stats> accumulated_stats;
-    std::map<OperationType, std::chrono::high_resolution_clock::time_point> start_times;
-    // ... mutex ...
-public:
-    void start_measurement(OperationType type);
-    void end_measurement(OperationType type);
-    std::string generate_report();
-    void reset();
-};
-```
-
-## 6. Security Measures
-
-### 6.1 Authentication (`deribit authorize` command)
+### 5.1 Authentication (`deribit authorize` command)
 
 - The primary authentication mechanism involves sending the `client_id` and `client_secret` over the secure WebSocket (WSS) connection using the `public/auth` API method.
 - The resulting access and refresh tokens are likely handled implicitly by the Deribit API session on the server-side for subsequent private calls within that connection. The client itself doesn't appear to explicitly store or manage these tokens based on the provided code.
 
-### 6.2 API Key Handling (`security/credentials.cpp`)
+### 5.2 API Key Handling (`security/credentials.cpp`)
 
 - The `Credentials` class provides a simple in-memory storage for the `client_id` and `client_secret` provided by the user during the session.
 - **Important**: Storing credentials only in memory means they are lost when the application closes and must be re-entered. For production use, secure storage (e.g., encrypted configuration file, OS keychain, environment variables) is strongly recommended. The current implementation is suitable for testing but not secure for production keys.
 
-### 6.3 Secure Connection (WSS)
+### 5.3 Secure Connection (WSS)
 
 - The use of `wss://` URIs and linking against OpenSSL ensures that the communication channel between the client and Deribit is encrypted via TLS.
 
-## 7. Testing Framework (`tests/`)
+## 6. Testing Framework (`tests/`)
 
 The project utilizes the Google Test framework for automated testing, crucial for ensuring the correctness and reliability of trading software components.
 
-### 7.1 Test Structure
+### 6.1 Test Structure
 
 -   **Unit Tests (`tests/unit/`)**: Focus on isolating and testing individual classes or functions. Examples:
     -   `test_credentials.cpp`: Tests the `Credentials` class.
@@ -214,7 +136,7 @@ The project utilizes the Google Test framework for automated testing, crucial fo
     -   `test_websocket_performance.cpp`: Measures WebSocket message send/receive latency.
     -   `test_market_api_performance.cpp`: Benchmarks the time taken to process API requests/responses.
 
-### 7.2 Running Tests
+### 6.2 Running Tests
 
 1.  Ensure the project is built (Section 4.1). CMake automatically configures test executables.
 2.  Navigate to the build directory: `cd build`
@@ -231,7 +153,7 @@ The project utilizes the Google Test framework for automated testing, crucial fo
     ```
 5.  A script `scripts/run_tests.sh` might exist to automate the build and test execution process.
 
-## 8. Usage (CLI Commands)
+## 7. Usage (CLI Commands)
 
 Start the interactive client by running the executable from the `build` directory:
 
@@ -276,7 +198,7 @@ You will be presented with the `tradexderibit>` prompt.
 *   `reset_report`: Clear collected performance metrics.
 *   `quit` or `exit`: Terminate the application.
 
-## 9. Troubleshooting
+## 8. Troubleshooting
 
 - **Connection Failed**:
     - Verify the URI (`wss://test.deribit.com/ws/api/v2` or `wss://www.deribit.com/ws/api/v2`).
@@ -298,95 +220,8 @@ You will be presented with the `tradexderibit>` prompt.
     - If `FetchContent` fails, check network connection or Git installation.
     - Clean the build directory (`rm -rf build/*`) and retry `cmake .. && make`.
 
-## 10. API Reference (Deribit API v2 Methods Used)
 
-The client interacts with the Deribit API v2 via JSON-RPC 2.0 over WebSocket. Key methods used include:
-
-**Public Methods:**
-
-*   `public/auth`:
-    *   **Purpose**: Authenticates the WebSocket session using API credentials. Required before calling any private methods.
-    *   **Used by**: `deribit <id> authorize <client_id> <client_secret>`
-    *   **Parameters**: `grant_type="client_credentials"`, `client_id`, `client_secret`.
-    *   **Response**: Contains `access_token`, `refresh_token`, `expires_in`, `token_type`. The client implicitly relies on the session being authenticated server-side after this call.
-
-*   `public/subscribe`:
-    *   **Purpose**: Subscribes the WebSocket connection to receive real-time updates for specified channels.
-    *   **Used by**: `deribit <id> subscribe <channel_name> [...]`
-    *   **Parameters**: `channels` (array of strings, e.g., `["deribit_price_index.btc_usd", "book.BTC-PERPETUAL.100ms"]`).
-    *   **Response**: Confirmation of successful subscriptions. Subsequent messages on the WebSocket will be notifications for these channels.
-
-*   `public/unsubscribe`:
-    *   **Purpose**: Unsubscribes the WebSocket connection from previously subscribed channels.
-    *   **Used by**: `deribit <id> unsubscribe <channel_name> [...]`
-    *   **Parameters**: `channels` (array of strings).
-    *   **Response**: Confirmation of successful unsubscriptions.
-
-*   `public/get_order_book`:
-    *   **Purpose**: Retrieves a snapshot of the order book (bids and asks) for a specific instrument.
-    *   **Used by**: `deribit <id> orderbook <instrument> [depth=<number>]`
-    *   **Parameters**: `instrument_name`, `depth` (optional, number of price levels).
-    *   **Response**: Contains lists of `bids` and `asks` (price, amount pairs), `timestamp`, `instrument_name`, etc.
-
-*   `public/get_index_price`:
-    *   **Purpose**: Retrieves the current index price for a specified index (e.g., BTC, ETH). Often used via subscriptions.
-    *   **Used by**: Subscriptions like `deribit_price_index.btc_usd`. Direct call possible but less common in this client.
-    *   **Parameters**: `index_name`.
-    *   **Response**: Contains `index_name` and `price`.
-
-*   `public/ticker`:
-    *   **Purpose**: Retrieves summary information (ticker data) for a specific instrument, including best bid/ask, last price, volume, etc.
-    *   **Used by**: Potentially used by subscriptions like `ticker.<instrument_name>.<interval>` or could be called directly (though not explicitly shown as a command).
-    *   **Parameters**: `instrument_name`.
-    *   **Response**: Contains fields like `best_ask_price`, `best_bid_price`, `last_price`, `instrument_name`, `stats`, `state`, `timestamp`.
-
-**Private Methods (require authentication via `public/auth`):**
-
-*   `private/buy`:
-    *   **Purpose**: Places a buy order on the exchange.
-    *   **Used by**: `deribit <id> buy <instrument> <amount> <price> [options...]`
-    *   **Parameters**: `instrument_name`, `amount`, `type` (e.g., `limit`, `market`), `price` (required for limit orders), `label` (optional), potentially others like `time_in_force`, `post_only`, etc.
-    *   **Response**: Details of the placed order, including `order_id`, `order_state`, etc.
-
-*   `private/sell`:
-    *   **Purpose**: Places a sell order on the exchange.
-    *   **Used by**: `deribit <id> sell <instrument> <amount> <price> [options...]`
-    *   **Parameters**: Same as `private/buy`.
-    *   **Response**: Details of the placed order.
-
-*   `private/get_open_orders_by_instrument`:
-    *   **Purpose**: Retrieves all open orders for the authenticated user on a specific instrument.
-    *   **Used by**: `deribit <id> get_open_orders [instrument=<name>]` (likely calls this or `private/get_open_orders_by_currency` if no instrument is specified).
-    *   **Parameters**: `instrument_name`, potentially `type` (e.g., `limit`, `stop`, `all`).
-    *   **Response**: An array of open order objects, each containing details like `order_id`, `instrument_name`, `direction`, `amount`, `price`, `order_state`, etc.
-
-*   `private/get_positions`:
-    *   **Purpose**: Retrieves the current positions held by the authenticated user for a specific currency or instrument.
-    *   **Used by**: `deribit <id> positions` (likely calls `private/get_positions` with the currency derived from the instrument or a default like BTC/ETH).
-    *   **Parameters**: `currency` (e.g., `BTC`, `ETH`), potentially `kind` (e.g., `future`, `option`).
-    *   **Response**: An array of position objects, detailing `instrument_name`, `size`, `average_price`, `floating_profit_loss`, `index_price`, etc.
-
-*   `private/edit`:
-    *   **Purpose**: Modifies an existing open order (e.g., change price or amount).
-    *   **Used by**: (Not explicitly listed as a command, but a common trading function).
-    *   **Parameters**: `order_id`, `amount`, `price`.
-    *   **Response**: Details of the modified order.
-
-*   `private/cancel`:
-    *   **Purpose**: Cancels a specific open order.
-    *   **Used by**: (Not explicitly listed as a command, but essential for order management).
-    *   **Parameters**: `order_id`.
-    *   **Response**: Details of the cancelled order.
-
-*   `private/cancel_all`:
-    *   **Purpose**: Cancels all open orders across all instruments for the account.
-    *   **Used by**: (Not explicitly listed as a command).
-    *   **Parameters**: None.
-    *   **Response**: Number of orders cancelled.
-
-*(Refer to the official Deribit API v2 documentation for the most accurate and complete details on method names, parameters, responses, and channel naming conventions.)*
-
-## 11. Future Enhancements
+## 9. Future Enhancements
 
 -   **Configuration File**: Implement loading of settings (API keys, URLs, default parameters) from a secure configuration file (e.g., JSON, YAML) or environment variables.
 -   **Advanced Order Types**: Add support for more complex orders (stop-loss, take-profit, trailing stops).
@@ -397,6 +232,6 @@ The client interacts with the Deribit API v2 via JSON-RPC 2.0 over WebSocket. Ke
 -   **Order/Trade History**: Add commands to fetch historical order and trade data.
 -   **GUI**: Develop a graphical user interface as an alternative to the CLI.
 
-## 12. License
+## 10. License
 
 **This project is licensed under GAURAV SINGH ©**
