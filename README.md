@@ -74,8 +74,8 @@ DeribitTrader employs a modular C++ architecture:
 1.  **Clone the Repository**:
     ```bash
     # Replace with the actual repository URL if applicable
-    git clone https://github.com/yourusername/DERIBitXTrader.git
-    cd DERIBitXTrader
+    git clone https://github.com//gaurav-singh7092/DeribitXTrader.git
+    cd DeribitXTrader
     ```
 
 2.  **Create and Navigate to Build Directory**:
