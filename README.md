@@ -1,20 +1,3 @@
----
-title: "DeribitXTrader: Advanced Trading System"
-author: "Developed By : Gaurav Singh"
-toc: true
-toc-depth: 3
-numbersections: true
-geometry: "margin=1in"
-fontsize: 11pt
-colorlinks: true
-linkcolor: blue
-urlcolor: blue
----
-
-
-
-\newpage
-
 # DeribitXTrader: Advanced Trading System
 
 ## 1. Executive Summary
